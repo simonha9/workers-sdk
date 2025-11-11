@@ -75,4 +75,49 @@ describe("create", () => {
 			}"
 		`);
 	});
+
+	it("should fail if the jurisdiction provided is not supported", async () => {
+		await expect(runWrangler("d1 create test --jurisdiction something")).rejects
+			.toThrowErrorMatchingInlineSnapshot(`
+			[Error: Invalid values:
+			  Argument: jurisdiction, Given: "something", Choices: "eu", "fedramp"]
+		`);
+	});
+
+	it("should try send jurisdiction to the API if it is a valid input", async () => {
+		setIsTTY(false);
+		mockGetMemberships([
+			{ id: "IG-88", account: { id: "1701", name: "enterprise" } },
+		]);
+		msw.use(
+			http.post("*/accounts/:accountId/d1/database", async () => {
+				return HttpResponse.json({
+					result: {
+						uuid: "51e7c314-456e-4167-b6c3-869ad188fc23",
+						name: "test",
+						created_in_region: "WEUR",
+						jurisdiction: "eu",
+					},
+					success: true,
+					errors: [],
+					messages: [],
+				});
+			})
+		);
+		await runWrangler("d1 create test --jurisdiction eu");
+		expect(std.out).toMatchInlineSnapshot(`
+			"✅ Successfully created DB 'test' in region WEUR
+			Created your new D1 database.
+
+			{
+			  \\"d1_databases\\": [
+			    {
+			      \\"binding\\": \\"DB\\",
+			      \\"database_name\\": \\"test\\",
+			      \\"database_id\\": \\"51e7c314-456e-4167-b6c3-869ad188fc23\\"
+			    }
+			  ]
+			}"
+		`);
+	});
 });

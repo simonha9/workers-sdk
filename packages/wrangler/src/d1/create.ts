@@ -4,7 +4,7 @@ import { UserError } from "../errors";
 import { logger } from "../logger";
 import { requireAuth } from "../user";
 import { printWranglerBanner } from "../wrangler-banner";
-import { LOCATION_CHOICES } from "./constants";
+import { JURISDICTION_CHOICES, LOCATION_CHOICES } from "./constants";
 import type {
 	CommonYargsArgv,
 	StrictYargsOptionsToInterface,
@@ -14,7 +14,8 @@ import type { DatabaseCreationResult } from "./types";
 export async function createD1Database(
 	accountId: string,
 	name: string,
-	location?: string
+	location?: string,
+	jurisdiction?: string
 ) {
 	try {
 		return await fetchResult<DatabaseCreationResult>(
@@ -27,6 +28,7 @@ export async function createD1Database(
 				body: JSON.stringify({
 					name,
 					...(location && { primary_location_hint: location }),
+					...(jurisdiction && { jurisdiction }),
 				}),
 			}
 		);
@@ -50,12 +52,18 @@ export function Options(yargs: CommonYargsArgv) {
 			describe:
 				"A hint for the primary location of the new DB. Options:\nweur: Western Europe\neeur: Eastern Europe\napac: Asia Pacific\noc: Oceania\nwnam: Western North America\nenam: Eastern North America \n",
 			type: "string",
+		})
+		.option("jurisdiction", {
+			describe:
+				"The location to restrict the D1 database to run and store data within to comply with local regulations. Note that if jurisdictions are set, the location hint is ignored. Options:\neu: The European Union\nfedramp: FedRAMP-compliant data centers\n",
+			type: "string",
+			choices: JURISDICTION_CHOICES,
 		});
 }
 
 type HandlerOptions = StrictYargsOptionsToInterface<typeof Options>;
 export const Handler = withConfig<HandlerOptions>(
-	async ({ name, config, location }): Promise<void> => {
+	async ({ name, config, location, jurisdiction }): Promise<void> => {
 		await printWranglerBanner();
 		const accountId = await requireAuth(config);
 
@@ -69,7 +77,7 @@ export const Handler = withConfig<HandlerOptions>(
 			}
 		}
 
-		const db = await createD1Database(accountId, name, location);
+		const db = await createD1Database(accountId, name, location, jurisdiction);
 
 		logger.log(
 			`✅ Successfully created DB '${db.name}'${
